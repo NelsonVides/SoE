@@ -14,7 +14,7 @@ init(Ref, Transport, _Opts) ->
 
 loop(Socket, Transport) ->
     case Transport:recv(Socket, 0, 60000) of
-        {ok, _Data} ->
+        {ok, Data} when Data =/= <<4>> ->
             loop(Socket, Transport);
         _ ->
             ok = Transport:close(Socket)
