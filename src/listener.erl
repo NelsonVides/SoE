@@ -23,7 +23,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {listener}).
 
 %%%===================================================================
 %%% API
@@ -55,7 +55,10 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+    {ok, Listener} = ranch:start_listener(the_listener,
+                        ranch_tcp, #{socket_opts => [{port,5555}]},
+                        basic_protocol, []),
+    {ok, #state{listener = Listener}}.
 
 %%--------------------------------------------------------------------
 %% @private
