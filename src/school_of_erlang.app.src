@@ -5,7 +5,8 @@
   {mod, {school_of_erlang_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    ranch
    ]},
   {env,[]},
   {modules, []},
