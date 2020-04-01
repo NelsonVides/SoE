@@ -1,10 +1,12 @@
 {"1.1.0",
-[{<<"proper">>,{pkg,<<"proper">>,<<"1.3.0">>},0},
+[{<<"jiffy">>,{pkg,<<"jiffy">>,<<"1.0.4">>},0},
+ {<<"proper">>,{pkg,<<"proper">>,<<"1.3.0">>},0},
  {<<"ranch">>,
   {git,"https://github.com/ninenines/ranch.git",
        {ref,"51b01240084fd1aa4bf691e7dac07119e5f23e34"}},
   0}]}.
 [
 {pkg_hash,[
+ {<<"jiffy">>, <<"72ADEFF75C52A2FF07DE738F0813768ABE7CE158026CC1115A170340259C0CAA">>},
  {<<"proper">>, <<"C1ACD51C51DA17A2FE91D7A6FC6A0C25A6A9849D8DC77093533109D1218D8457">>}]}
 ].
