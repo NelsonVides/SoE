@@ -82,5 +82,18 @@ end_per_testcase(_TestCase, _Config) ->
 %%%===================================================================
 
 echo_protocol_does_echo(Config) ->
-    _Sock = ?config(socket, Config),
-    ?assert(false).
+    Sock = ?config(socket, Config),
+    F = fun(Msg) ->
+                ok = gen_tcp:send(Sock, Msg),
+                receive
+                    {tcp, Sock, X} ->
+                        X
+                after 1000 ->
+                          error
+                end
+        end,
+    ?assert(proper:counterexample(
+             ?FORALL(Msg,
+                     binary(),
+                     Msg == F(Msg))),
+            [{numtests, 100}]).
