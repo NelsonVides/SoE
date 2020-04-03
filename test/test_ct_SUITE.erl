@@ -94,6 +94,6 @@ echo_protocol_does_echo(Config) ->
         end,
     ?assert(proper:counterexample(
              ?FORALL(Msg,
-                     binary(),
+                     ?SUCHTHAT(Msg, binary(), Msg =/= <<>> andalso Msg =/= <<4>>),
                      Msg == F(Msg))),
             [{numtests, 100}]).
