@@ -127,4 +127,17 @@ echo_protocol_respects_EOT(Config) ->
 
 login_successful(Config) ->
     Sock = ?config(socket, Config),
-    ?assert(false).
+    Nickname = <<"Alice">>,
+    Expected = parser_helper:login_successful_answer(Nickname),
+    ok = do_login(Sock, Nickname, Expected).
+
+do_login(Socket, Nickname, Expected) ->
+    LoginMsg = parser_helper:login_stanza(Nickname),
+    ok = gen_tcp:send(Socket, parser:encode(LoginMsg)),
+    receive
+        {tcp, Socket, Answer} ->
+            Decoded = parser:decode(Answer),
+            ?assertEqual(Expected, Decoded)
+    after 1000 ->
+              error
+    end.
