@@ -23,7 +23,8 @@
 -export([
          echo_protocol_does_echo/1,
          echo_protocol_respects_EOT/1,
-         login_successful/1
+         login_successful/1,
+         login_fails_conflicting_nickname/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -33,13 +34,16 @@
 all() ->
     [
      {group, echo_protocol},
-     {group, messenger_protocol_single_user}
+     {group, messenger_protocol}
     ].
 
 groups() ->
     [
      {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]},
-     {messenger_protocol_single_user, [], [login_successful]}
+     {messenger_protocol, [], [{group, messenger_protocol_single_user},
+                               {group, messenger_protocol_two_users}]},
+     {messenger_protocol_single_user, [], [login_successful]},
+     {messenger_protocol_two_users, [], [login_fails_conflicting_nickname]}
     ].
 
 %%%===================================================================
@@ -61,19 +65,24 @@ init_per_group(echo_protocol, Config) ->
                                            ranch_tcp, #{socket_opts => [{port, 5555}]},
                                            basic_protocol, []),
     Config;
-init_per_group(messenger_protocol_single_user, Config) ->
+init_per_group(messenger_protocol, Config) ->
     {ok, _Listener} = ranch:start_listener(echo_listener,
                                            ranch_tcp, #{socket_opts => [{port, 5556}]},
                                            messenger_protocol, []),
-    [{number_of_clients, 1} | Config].
+    Config;
+init_per_group(messenger_protocol_single_user, Config) ->
+    [{number_of_clients, 1} | Config];
+init_per_group(messenger_protocol_two_users, Config) ->
+    [{number_of_clients, 2} | Config].
 
 end_per_group(echo_protocol, _Config) ->
     ranch:stop_listener(echo_listener),
     ok;
-end_per_group(messenger_protocol_single_user, _Config) ->
+end_per_group(messenger_protocol, _Config) ->
     ranch:stop_listener(messenger_protocol),
+    ok;
+end_per_group(_GN, _Config) ->
     ok.
-
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
@@ -147,6 +156,14 @@ login_successful(Config) ->
     {Socket, Nickname} = ?config(user1, Config),
     Expected = parser_helper:login_successful_answer(Nickname),
     ok = do_login(Socket, Nickname, Expected).
+
+login_fails_conflicting_nickname(Config) ->
+    {Socket1, Nickname1} = ?config(user1, Config),
+    {Socket2, _} = ?config(user2, Config),
+    ExpectedSuccess = parser_helper:login_successful_answer(Nickname1),
+    ok = do_login(Socket1, Nickname1, ExpectedSuccess),
+    ExpectedFailure = parser_helper:login_failed_answer(Nickname1),
+    ok = do_login(Socket2, Nickname1, ExpectedFailure).
 
 do_login(Socket, Nickname, Expected) ->
     LoginMsg = parser_helper:login_stanza(Nickname),
