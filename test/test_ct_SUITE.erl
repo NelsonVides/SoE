@@ -33,13 +33,13 @@
 all() ->
     [
      {group, echo_protocol},
-     {group, messenger_protocol}
+     {group, messenger_protocol_single_user}
     ].
 
 groups() ->
     [
      {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]},
-     {messenger_protocol, [], [login_successful]}
+     {messenger_protocol_single_user, [], [login_successful]}
     ].
 
 %%%===================================================================
@@ -61,16 +61,16 @@ init_per_group(echo_protocol, Config) ->
                                            ranch_tcp, #{socket_opts => [{port, 5555}]},
                                            basic_protocol, []),
     Config;
-init_per_group(messenger_protocol, Config) ->
+init_per_group(messenger_protocol_single_user, Config) ->
     {ok, _Listener} = ranch:start_listener(echo_listener,
                                            ranch_tcp, #{socket_opts => [{port, 5556}]},
                                            messenger_protocol, []),
-    Config.
+    [{number_of_clients, 1} | Config].
 
 end_per_group(echo_protocol, _Config) ->
     ranch:stop_listener(echo_listener),
     ok;
-end_per_group(messenger_protocol, _Config) ->
+end_per_group(messenger_protocol_single_user, _Config) ->
     ranch:stop_listener(messenger_protocol),
     ok.
 
@@ -82,22 +82,38 @@ init_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
                                    TC == echo_protocol_respects_EOT ->
     {ok, Sock} = gen_tcp:connect("localhost", 5555, [binary, {packet, 0}]),
     [{socket, Sock} | Config];
-init_per_testcase(login_successful, Config) ->
-    {ok, Sock} = gen_tcp:connect("localhost", 5556, [binary, {packet, 0}]),
-    [{socket, Sock} | Config].
+init_per_testcase(TC, Config) ->
+    NumberOfClients = ?config(number_of_clients, Config),
+    Users = generate_users(TC, NumberOfClients),
+    Users ++ Config.
 
 end_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
-                                  TC == echo_protocol_respects_EOT;
-                                  TC == login_successful ->
-    ok = gen_tcp:close(?config(socket, Config)),
-    Config;
-end_per_testcase(_TestCase, _Config) ->
-    ok.
+                                  TC == echo_protocol_respects_EOT ->
+    ok = gen_tcp:close(?config(socket, Config));
+end_per_testcase(_TC, Config) ->
+    NumberOfClients = ?config(number_of_clients, Config),
+    GeneratedUsers = get_generated_users(Config, NumberOfClients),
+    lists:foreach(fun({Socket, _}) -> ok = gen_tcp:close(Socket) end, GeneratedUsers).
+
+generate_users(TC, N) when is_integer(N), N > 0 ->
+    [
+     begin
+         {ok, Socket} = gen_tcp:connect("localhost", 5556, [binary, {packet, 0}]),
+         Nickname = <<"User_", (integer_to_binary(X))/binary, (atom_to_binary(TC, utf8))/binary>>,
+         {binary_to_atom(<<"user", (integer_to_binary(X))/binary>>, utf8), {Socket, Nickname}}
+     end || X <- lists:seq(1, N)].
+
+get_generated_users(Config, N) when is_integer(N), N > 0 ->
+    [begin
+         UserAtom = binary_to_atom(<<"user", (integer_to_binary(X))/binary>>, utf8),
+         ?config(UserAtom, Config)
+     end || X <- lists:seq(1, N)].
 
 %%%===================================================================
 %%% Individual Test Cases (from groups() definition)
 %%%===================================================================
 
+%% Echo protocol tests
 echo_protocol_does_echo(Config) ->
     Sock = ?config(socket, Config),
     F = fun(Msg) ->
@@ -125,11 +141,12 @@ echo_protocol_respects_EOT(Config) ->
               error
     end.
 
+
+%% Messenger protocol tests
 login_successful(Config) ->
-    Sock = ?config(socket, Config),
-    Nickname = <<"Alice">>,
+    {Socket, Nickname} = ?config(user1, Config),
     Expected = parser_helper:login_successful_answer(Nickname),
-    ok = do_login(Sock, Nickname, Expected).
+    ok = do_login(Socket, Nickname, Expected).
 
 do_login(Socket, Nickname, Expected) ->
     LoginMsg = parser_helper:login_stanza(Nickname),
