@@ -22,7 +22,8 @@
 %% test cases
 -export([
          echo_protocol_does_echo/1,
-         echo_protocol_respects_EOT/1
+         echo_protocol_respects_EOT/1,
+         login_successful/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -31,12 +32,14 @@
 
 all() ->
     [
-     {group, echo_protocol}
+     {group, echo_protocol},
+     {group, messenger_protocol}
     ].
 
 groups() ->
     [
-     {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]}
+     {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]},
+     {messenger_protocol, [], [login_successful]}
     ].
 
 %%%===================================================================
@@ -57,10 +60,18 @@ init_per_group(echo_protocol, Config) ->
     {ok, _Listener} = ranch:start_listener(echo_listener,
                                            ranch_tcp, #{socket_opts => [{port, 5555}]},
                                            basic_protocol, []),
+    Config;
+init_per_group(messenger_protocol, Config) ->
+    {ok, _Listener} = ranch:start_listener(echo_listener,
+                                           ranch_tcp, #{socket_opts => [{port, 5556}]},
+                                           messenger_protocol, []),
     Config.
 
-end_per_group(_Groupname, _Config) ->
+end_per_group(echo_protocol, _Config) ->
     ranch:stop_listener(echo_listener),
+    ok;
+end_per_group(messenger_protocol, _Config) ->
+    ranch:stop_listener(messenger_protocol),
     ok.
 
 
@@ -71,11 +82,13 @@ init_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
                                    TC == echo_protocol_respects_EOT ->
     {ok, Sock} = gen_tcp:connect("localhost", 5555, [binary, {packet, 0}]),
     [{socket, Sock} | Config];
-init_per_testcase(_TestCase, Config) ->
-    Config.
+init_per_testcase(login_successful, Config) ->
+    {ok, Sock} = gen_tcp:connect("localhost", 5556, [binary, {packet, 0}]),
+    [{socket, Sock} | Config].
 
 end_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
-                                  TC == echo_protocol_respects_EOT ->
+                                  TC == echo_protocol_respects_EOT;
+                                  TC == login_successful ->
     ok = gen_tcp:close(?config(socket, Config)),
     Config;
 end_per_testcase(_TestCase, _Config) ->
@@ -111,3 +124,7 @@ echo_protocol_respects_EOT(Config) ->
     after 1000 ->
               error
     end.
+
+login_successful(Config) ->
+    Sock = ?config(socket, Config),
+    ?assert(false).
