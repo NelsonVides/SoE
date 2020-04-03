@@ -21,7 +21,8 @@
 
 %% test cases
 -export([
-         echo_protocol_does_echo/1
+         echo_protocol_does_echo/1,
+         echo_protocol_respects_EOT/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -35,7 +36,7 @@ all() ->
 
 groups() ->
     [
-     {echo_protocol, [], [echo_protocol_does_echo]}
+     {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]}
     ].
 
 %%%===================================================================
@@ -66,13 +67,15 @@ end_per_group(_Groupname, _Config) ->
 %%%===================================================================
 %%% Testcase specific setup/teardown
 %%%===================================================================
-init_per_testcase(TC, Config) when TC == echo_protocol_does_echo ->
+init_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
+                                   TC == echo_protocol_respects_EOT ->
     {ok, Sock} = gen_tcp:connect("localhost", 5555, [binary, {packet, 0}]),
     [{socket, Sock} | Config];
 init_per_testcase(_TestCase, Config) ->
     Config.
 
-end_per_testcase(TC, Config) when TC == echo_protocol_does_echo ->
+end_per_testcase(TC, Config) when TC == echo_protocol_does_echo;
+                                  TC == echo_protocol_respects_EOT ->
     ok = gen_tcp:close(?config(socket, Config)),
     Config;
 end_per_testcase(_TestCase, _Config) ->
@@ -98,3 +101,13 @@ echo_protocol_does_echo(Config) ->
                      ?SUCHTHAT(Msg, binary(), Msg =/= <<>> andalso Msg =/= <<4>>),
                      Msg == F(Msg))),
             [{numtests, 100}]).
+
+echo_protocol_respects_EOT(Config) ->
+    Sock = ?config(socket, Config),
+    ok = gen_tcp:send(Sock, <<4>>),
+    receive
+        {tcp_closed, Sock} ->
+            ok
+    after 1000 ->
+              error
+    end.
