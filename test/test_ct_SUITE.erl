@@ -30,17 +30,19 @@
 
 all() ->
     [
-     echo_protocol_does_echo
+     {group, echo_protocol}
     ].
 
 groups() ->
     [
+     {echo_protocol, [], [echo_protocol_does_echo]}
     ].
 
 %%%===================================================================
 %%% Overall setup/teardown
 %%%===================================================================
 init_per_suite(Config) ->
+    ok = application:ensure_started(ranch),
     Config.
 
 end_per_suite(_Config) ->
@@ -50,29 +52,28 @@ end_per_suite(_Config) ->
 %%%===================================================================
 %%% Group specific setup/teardown
 %%%===================================================================
-init_per_group(_Groupname, Config) ->
+init_per_group(echo_protocol, Config) ->
+    {ok, _Listener} = ranch:start_listener(echo_listener,
+                                           ranch_tcp, #{socket_opts => [{port, 5555}]},
+                                           basic_protocol, []),
     Config.
 
 end_per_group(_Groupname, _Config) ->
+    ranch:stop_listener(echo_listener),
     ok.
 
 
 %%%===================================================================
 %%% Testcase specific setup/teardown
 %%%===================================================================
-init_per_testcase(echo_protocol_does_echo, Config) ->
-    ok = application:ensure_started(ranch),
-    {ok, _Listener} = ranch:start_listener(echo_listener,
-                                           ranch_tcp, #{socket_opts => [{port, 5555}]},
-                                           basic_protocol, []),
+init_per_testcase(TC, Config) when TC == echo_protocol_does_echo ->
     {ok, Sock} = gen_tcp:connect("localhost", 5555, [binary, {packet, 0}]),
     [{socket, Sock} | Config];
 init_per_testcase(_TestCase, Config) ->
     Config.
 
-end_per_testcase(echo_protocol_does_echo, Config) ->
+end_per_testcase(TC, Config) when TC == echo_protocol_does_echo ->
     ok = gen_tcp:close(?config(socket, Config)),
-    ranch:stop_listener(echo_listener),
     Config;
 end_per_testcase(_TestCase, _Config) ->
     ok.
