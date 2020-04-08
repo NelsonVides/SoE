@@ -52,9 +52,14 @@ remove_session(Nickname) when is_binary(Nickname) ->
             {error, nickname_not_existent}
     end.
 
--spec get_session_pid(binary()) -> pid() | {error, term()}.
-get_session_pid(_Nickname) ->
-    undefined.
+-spec get_session_pid(binary()) -> pid() | {error, nickname_not_existent}.
+get_session_pid(Nickname) ->
+    case ets:lookup(session, Nickname) of
+        [{Nickname, Pid}] ->
+            Pid;
+        [] ->
+            {error, nickname_not_existent}
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc
