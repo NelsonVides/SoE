@@ -4,7 +4,9 @@
 -export([
          login_stanza/1,
          login_successful_answer/1,
-         login_failed_answer/0
+         login_failed_answer/0,
+         chat_message/3,
+         user_non_existent/1
         ]).
 
 login_stanza(Nickname) ->
@@ -23,4 +25,17 @@ login_failed_answer() ->
     #{<<"type">> => <<"status">>,
       <<"status">> => <<"failed login">>,
       <<"reason">> => <<"nickname in use">>
+     }.
+
+chat_message(From, To, Body) ->
+    #{<<"type">> => <<"message">>,
+      <<"from">> => From,
+      <<"to">> => To,
+      <<"body">> => Body
+     }.
+
+user_non_existent(Nickname) ->
+    #{<<"type">> => <<"status">>,
+      <<"status">> => <<"delivery error">>,
+      <<"reason">> => <<(Nickname)/binary, "does not exist">>
      }.

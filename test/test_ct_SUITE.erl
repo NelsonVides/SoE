@@ -25,7 +25,8 @@
          echo_protocol_respects_EOT/1,
          login_successful/1,
          login_fails_conflicting_nickname/1,
-         user_can_login_and_log_out_and_log_in_again/1
+         user_can_login_and_log_out_and_log_in_again/1,
+         user_fails_to_chat_to_non_existent_user/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -44,7 +45,8 @@ groups() ->
      {messenger_protocol, [], [{group, messenger_protocol_single_user},
                                {group, messenger_protocol_two_users}]},
      {messenger_protocol_single_user, [], [login_successful,
-                                           user_can_login_and_log_out_and_log_in_again
+                                           user_can_login_and_log_out_and_log_in_again,
+                                           user_fails_to_chat_to_non_existent_user
                                           ]},
      {messenger_protocol_two_users, [], [login_fails_conflicting_nickname
                                         ]}
@@ -177,17 +179,22 @@ user_can_login_and_log_out_and_log_in_again(Config) ->
     ok = do_login(Sock2, Nickname, parser_helper:login_successful_answer(Nickname)),
     ok = close_session(Sock2).
 
+user_fails_to_chat_to_non_existent_user(Config) ->
+    {Socket, Nickname} = ?config(user1, Config),
+    ok = do_login(Socket, Nickname, parser_helper:login_successful_answer(Nickname)),
+    BadNickname = <<"Bob_not_existing_yet">>,
+    ok = do_send_message(
+           Socket, Nickname, BadNickname, <<"Hello">>,
+           parser_helper:user_non_existent(BadNickname)).
+
 
 do_login(Socket, Nickname, Expected) ->
     LoginMsg = parser_helper:login_stanza(Nickname),
-    ok = gen_tcp:send(Socket, parser:encode(LoginMsg)),
-    receive
-        {tcp, Socket, Answer} ->
-            Decoded = parser:decode(Answer),
-            ?assertEqual(Expected, Decoded)
-    after 1000 ->
-              error
-    end.
+    do_send_stanza(Socket, LoginMsg, Expected).
+
+do_send_message(Socket, From, To, Body, Expected) ->
+    Msg = parser_helper:chat_message(From, To, Body),
+    do_send_stanza(Socket, Msg, Expected).
 
 close_session(Socket) ->
     case gen_tcp:send(Socket, <<4>>) of
@@ -198,4 +205,14 @@ close_session(Socket) ->
                     ok
             after 1000 -> {error, timeout} end;
         _ -> ok
+    end.
+
+do_send_stanza(Socket, ToSend, ExpectedAnswer) ->
+    ok = gen_tcp:send(Socket, parser:encode(ToSend)),
+    receive
+        {tcp, Socket, Answer} ->
+            Decoded = parser:decode(Answer),
+            ?assertEqual(ExpectedAnswer, Decoded)
+    after 1000 ->
+              {error, timeout}
     end.
