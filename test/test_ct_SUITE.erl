@@ -24,7 +24,10 @@
          echo_protocol_does_echo/1,
          echo_protocol_respects_EOT/1,
          login_successful/1,
-         login_fails_conflicting_nickname/1
+         login_fails_conflicting_nickname/1,
+         user_can_login_and_log_out_and_log_in_again/1,
+         user_fails_to_chat_to_non_existent_user/1,
+         two_users_can_chat/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -42,8 +45,13 @@ groups() ->
      {echo_protocol, [], [echo_protocol_does_echo, echo_protocol_respects_EOT]},
      {messenger_protocol, [], [{group, messenger_protocol_single_user},
                                {group, messenger_protocol_two_users}]},
-     {messenger_protocol_single_user, [], [login_successful]},
-     {messenger_protocol_two_users, [], [login_fails_conflicting_nickname]}
+     {messenger_protocol_single_user, [], [login_successful,
+                                           user_can_login_and_log_out_and_log_in_again,
+                                           user_fails_to_chat_to_non_existent_user
+                                          ]},
+     {messenger_protocol_two_users, [], [login_fails_conflicting_nickname,
+                                         two_users_can_chat
+                                        ]}
     ].
 
 %%%===================================================================
@@ -158,13 +166,67 @@ login_fails_conflicting_nickname(Config) ->
     ExpectedFailure = parser_helper:login_failed_answer(Nickname1),
     ok = do_login(Socket2, Nickname1, ExpectedFailure).
 
+user_can_login_and_log_out_and_log_in_again(Config) ->
+    {Sock1, Nickname} = ?config(user1, Config),
+    ok = do_login(Sock1, Nickname, parser_helper:login_successful_answer(Nickname)),
+    ok = close_session(Sock1),
+    {ok, Sock2} = gen_tcp:connect("localhost", 5556, [binary, {packet, 0}]),
+    ok = do_login(Sock2, Nickname, parser_helper:login_successful_answer(Nickname)),
+    ok = close_session(Sock2).
+
+user_fails_to_chat_to_non_existent_user(Config) ->
+    {Socket, Nickname} = ?config(user1, Config),
+    ok = do_login(Socket, Nickname, parser_helper:login_successful_answer(Nickname)),
+    BadNickname = <<"Bob_not_existing_yet">>,
+    ok = do_send_message(
+           Socket, Nickname, BadNickname, <<"Hello">>,
+           parser_helper:user_non_existent(BadNickname)).
+
+two_users_can_chat(Config) ->
+    {Socket1, Nickname1} = ?config(user1, Config),
+    {Socket2, Nickname2} = ?config(user2, Config),
+    ok = do_login(Socket1, Nickname1, parser_helper:login_successful_answer(Nickname1)),
+    ok = do_login(Socket2, Nickname2, parser_helper:login_successful_answer(Nickname2)),
+    Msg = <<"Hello World!">>,
+    ok = do_send_message(Socket1, Nickname1, Nickname2, Msg, parser_helper:message_delivered()),
+    ok = do_receive_message(Socket2, Nickname1, Nickname2, Msg).
+
+
 do_login(Socket, Nickname, Expected) ->
     LoginMsg = parser_helper:login_stanza(Nickname),
-    ok = gen_tcp:send(Socket, parser:encode(LoginMsg)),
+    do_send_stanza(Socket, LoginMsg, Expected).
+
+do_send_message(Socket, From, To, Body, Expected) ->
+    Msg = parser_helper:chat_message(From, To, Body),
+    do_send_stanza(Socket, Msg, Expected).
+
+close_session(Socket) ->
+    case gen_tcp:send(Socket, <<4>>) of
+        ok ->
+            receive
+                {tcp_closed, Socket} ->
+                    gen_tcp:close(Socket),
+                    ok
+            after 1000 -> {error, timeout} end;
+        _ -> ok
+    end.
+
+do_send_stanza(Socket, ToSend, ExpectedAnswer) ->
+    ok = gen_tcp:send(Socket, parser:encode(ToSend)),
     receive
         {tcp, Socket, Answer} ->
             Decoded = parser:decode(Answer),
-            ?assertEqual(Expected, Decoded)
+            ?assertEqual(ExpectedAnswer, Decoded)
     after 1000 ->
-              error
+              {error, timeout}
+    end.
+
+do_receive_message(Socket, From, To, Body) ->
+    ExpectedAnswer = parser_helper:chat_message(From, To, Body),
+    receive
+        {tcp, Socket, Answer} ->
+            Decoded = parser:decode(Answer),
+            ?assertEqual(ExpectedAnswer, Decoded)
+    after 1000 ->
+              {error, timeout}
     end.
