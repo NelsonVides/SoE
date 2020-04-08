@@ -51,7 +51,8 @@ groups() ->
 %%%===================================================================
 init_per_suite(Config) ->
     ok = application:ensure_started(ranch),
-    Config.
+    {ok, Pid} = listener:start_link(),
+    [{listener, Pid} | Config].
 
 end_per_suite(_Config) ->
     ok.
@@ -61,14 +62,8 @@ end_per_suite(_Config) ->
 %%% Group specific setup/teardown
 %%%===================================================================
 init_per_group(echo_protocol, Config) ->
-    {ok, _Listener} = ranch:start_listener(echo_listener,
-                                           ranch_tcp, #{socket_opts => [{port, 5555}]},
-                                           basic_protocol, []),
     Config;
 init_per_group(messenger_protocol, Config) ->
-    {ok, _Listener} = ranch:start_listener(echo_listener,
-                                           ranch_tcp, #{socket_opts => [{port, 5556}]},
-                                           messenger_protocol, []),
     Config;
 init_per_group(messenger_protocol_single_user, Config) ->
     [{number_of_clients, 1} | Config];
@@ -76,10 +71,8 @@ init_per_group(messenger_protocol_two_users, Config) ->
     [{number_of_clients, 2} | Config].
 
 end_per_group(echo_protocol, _Config) ->
-    ranch:stop_listener(echo_listener),
     ok;
 end_per_group(messenger_protocol, _Config) ->
-    ranch:stop_listener(messenger_protocol),
     ok;
 end_per_group(_GN, _Config) ->
     ok.
