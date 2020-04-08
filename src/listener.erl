@@ -39,9 +39,18 @@ insert_session(Nickname) when is_binary(Nickname) ->
         false -> {error, nickname_conflict}
     end.
 
--spec remove_session(binary()) -> ok | {error, term()}.
-remove_session(_Nickname) ->
-    ok.
+-spec remove_session(binary()) -> ok | {error, not_allowed | nickname_not_existent}.
+remove_session(Nickname) when is_binary(Nickname) ->
+    Pid = self(),
+    case ets:lookup(session, Nickname) of
+        [{Nickname, Pid}] ->
+            ets:delete(session, Nickname),
+            ok;
+        [{Nickname, _OtherPid}] ->
+            {error, not_allowed};
+        [] ->
+            {error, nickname_not_existent}
+    end.
 
 -spec get_session_pid(binary()) -> pid() | {error, term()}.
 get_session_pid(_Nickname) ->
