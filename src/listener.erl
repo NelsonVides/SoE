@@ -12,6 +12,9 @@
 
 %% API
 -export([start_link/0]).
+-export([insert_session/1]).
+-export([remove_session/1]).
+-export([get_session_pid/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -23,11 +26,22 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {basic_listener, messenger_listener}).
+-record(state, {basic_listener, messenger_listener, session_table}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec insert_session(binary()) -> ok | {error, term()}.
+insert_session(_Nickname) ->
+    ok.
+
+-spec remove_session(binary()) -> ok | {error, term()}.
+remove_session(_Nickname) ->
+    ok.
+
+-spec get_session_pid(binary()) -> pid() | {error, term()}.
+get_session_pid(_Nickname) ->
+    undefined.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -61,8 +75,10 @@ init([]) ->
     {ok, MessengerListener} = ranch:start_listener(the_listener,
                                                    ranch_tcp, #{socket_opts => [{port,5556}]},
                                                    messenger_protocol, []),
+    Name = ets:new(session, [set, public, named_table]),
     {ok, #state{basic_listener = BasicListener,
-                messenger_listener = MessengerListener}}.
+                messenger_listener = MessengerListener,
+                session_table = Name}}.
 
 %%--------------------------------------------------------------------
 %% @private
