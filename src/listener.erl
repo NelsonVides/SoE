@@ -31,9 +31,13 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec insert_session(binary()) -> ok | {error, term()}.
-insert_session(_Nickname) ->
-    ok.
+-spec insert_session(binary()) -> ok | {error, nickname_conflict}.
+insert_session(Nickname) when is_binary(Nickname) ->
+    Pid = self(),
+    case ets:insert_new(session, {Nickname, Pid}) of
+        true -> ok;
+        false -> {error, nickname_conflict}
+    end.
 
 -spec remove_session(binary()) -> ok | {error, term()}.
 remove_session(_Nickname) ->
