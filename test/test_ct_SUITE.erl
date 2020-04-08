@@ -26,7 +26,8 @@
          login_successful/1,
          login_fails_conflicting_nickname/1,
          user_can_login_and_log_out_and_log_in_again/1,
-         user_fails_to_chat_to_non_existent_user/1
+         user_fails_to_chat_to_non_existent_user/1,
+         two_users_can_chat/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -48,7 +49,8 @@ groups() ->
                                            user_can_login_and_log_out_and_log_in_again,
                                            user_fails_to_chat_to_non_existent_user
                                           ]},
-     {messenger_protocol_two_users, [], [login_fails_conflicting_nickname
+     {messenger_protocol_two_users, [], [login_fails_conflicting_nickname,
+                                         two_users_can_chat
                                         ]}
     ].
 
@@ -187,6 +189,15 @@ user_fails_to_chat_to_non_existent_user(Config) ->
            Socket, Nickname, BadNickname, <<"Hello">>,
            parser_helper:user_non_existent(BadNickname)).
 
+two_users_can_chat(Config) ->
+    {Socket1, Nickname1} = ?config(user1, Config),
+    {Socket2, Nickname2} = ?config(user2, Config),
+    ok = do_login(Socket1, Nickname1, parser_helper:login_successful_answer(Nickname1)),
+    ok = do_login(Socket2, Nickname2, parser_helper:login_successful_answer(Nickname2)),
+    Msg = <<"Hello World!">>,
+    ok = do_send_message(Socket1, Nickname1, Nickname2, Msg, parser_helper:message_delivered()),
+    ok = do_receive_message(Socket2, Nickname1, Nickname2, Msg).
+
 
 do_login(Socket, Nickname, Expected) ->
     LoginMsg = parser_helper:login_stanza(Nickname),
@@ -209,6 +220,16 @@ close_session(Socket) ->
 
 do_send_stanza(Socket, ToSend, ExpectedAnswer) ->
     ok = gen_tcp:send(Socket, parser:encode(ToSend)),
+    receive
+        {tcp, Socket, Answer} ->
+            Decoded = parser:decode(Answer),
+            ?assertEqual(ExpectedAnswer, Decoded)
+    after 1000 ->
+              {error, timeout}
+    end.
+
+do_receive_message(Socket, From, To, Body) ->
+    ExpectedAnswer = parser_helper:chat_message(From, To, Body),
     receive
         {tcp, Socket, Answer} ->
             Decoded = parser:decode(Answer),

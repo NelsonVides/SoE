@@ -6,7 +6,8 @@
          login_successful_answer/1,
          login_failed_answer/0,
          chat_message/3,
-         user_non_existent/1
+         user_non_existent/1,
+         message_delivered/0
         ]).
 
 login_stanza(Nickname) ->
@@ -38,4 +39,10 @@ user_non_existent(Nickname) ->
     #{<<"type">> => <<"status">>,
       <<"status">> => <<"delivery error">>,
       <<"reason">> => <<(Nickname)/binary, "does not exist">>
+     }.
+
+message_delivered() ->
+    #{<<"type">> => <<"status">>,
+      <<"status">> => <<"delivery">>,
+      <<"reason">> => <<"successful">>
      }.
